@@ -25,7 +25,7 @@ class NotificationTool(private val context: Context) {
     }
 
     fun readNotifications(limit: Int, app: String? = null): ToolResult {
-        val service = requireService() ?: return notEnabled()
+        val service = requireService() ?: return serviceUnavailable()
         var notifications = service.currentNotifications().toList()
         if (notifications.isEmpty()) return ToolResult.ok("There are no active notifications.")
         val pm = context.packageManager
@@ -74,7 +74,7 @@ class NotificationTool(private val context: Context) {
 
     /** Dismiss a specific notification by key, or all of them when [key] is blank/null. */
     fun dismissNotifications(key: String?): ToolResult {
-        val service = requireService() ?: return notEnabled()
+        val service = requireService() ?: return serviceUnavailable()
         return if (key.isNullOrBlank()) {
             service.dismissAll()
             ToolResult.ok("Dismissed all dismissible notifications.")
@@ -227,6 +227,24 @@ class NotificationTool(private val context: Context) {
         "This needs Notification access. I have opened the Notification-access settings — " +
             "please enable Gotcha there and ask again."
     )
+
+    /**
+     * Diagnostic split for when [requireService] returns null: access not granted
+     * is a different problem from access granted but the listener service not
+     * yet bound, and the model needs to be told which one it is.
+     */
+    private fun serviceUnavailable(): ToolResult =
+        if (!hasNotificationAccess()) {
+            notEnabled()
+        } else {
+            ToolResult.error(
+                "Notification access IS granted for Gotcha, but the notification " +
+                    "listener service is not connected yet, so I cannot read " +
+                    "notifications. Please turn Notification access for Gotcha off " +
+                    "and back on in Settings, keep Gotcha in the foreground, and " +
+                    "ask again."
+            )
+        }
 
     private fun hasNotificationAccess(): Boolean {
         val flat = Settings.Secure.getString(
